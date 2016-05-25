@@ -1,0 +1,23 @@
+{
+  "extends": "airbnb",
+  "env": {
+    "browser": true,
+    "mocha": true,
+    "node": true
+  },
+  "globals": {
+    "__DEV__": false,
+    "__DEV_TOOLS__": false
+  },
+  "rules": {
+    "no-confusing-arrow": 0,
+    "no-nested-ternary": 0,
+    "yoda": 0
+  },
+  "parserOptions": {
+    "ecmaVersion": 6,
+    "ecmaFeatures": {
+      "experimentalObjectRestSpread": true
+    }
+  }
+}
