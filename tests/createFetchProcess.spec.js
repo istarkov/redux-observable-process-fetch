@@ -20,13 +20,13 @@ const combineDelegators = (...delegators) => (actions, store) =>
     Observable.merge(...(delegators.map((delegator) => delegator(actions, store))));
 
 // Initialize redux + redux-observable + redux-observable-processor
-const ctreateStoreWithReduxObservableMiddleware = ({ fetch }) => {
+const ctreateStoreWithReduxObservableMiddleware = (services) => {
   const reducer = (state = [], action) => state
     .concat(action)
     .filter(({ type }) => ['@@redux/INIT', FETCH_DATA, FETCH_CLEAR_CACHE].indexOf(type) === -1);
   // create Processor
   const processor = combineDelegators(
-    createFetchProcess({ fetch })
+    createFetchProcess(services)
   );
   const middleware = reduxObservable(processor);
 
@@ -37,7 +37,7 @@ const ctreateStoreWithReduxObservableMiddleware = ({ fetch }) => {
 // fetch action creator
 const createFetchAction = (actionType, preferCache, meta, ...args) => ({
   type: FETCH_DATA,
-  meta: { ...meta, type: actionType, cache: preferCache },
+  meta: { api: 'fetch', type: actionType, cache: preferCache, ...meta },
   payload: args,
 });
 
@@ -127,18 +127,26 @@ describe('createFetchProcess test', () => {
     });
 
     it('should refetch if previous call ends with error', (done) => {
-      const store = ctreateStoreWithReduxObservableMiddleware({ fetch: throwAtFirstCall() });
+      const store = ctreateStoreWithReduxObservableMiddleware({ throwFirst: throwAtFirstCall() });
       const LOAD_MY_OBJECT = 'LOAD_MY_OBJECT__';
 
       const [FIRST_CALL, NEXT_CALL] = [1, 2];
 
       store.dispatch(
-        createFetchAction(LOAD_MY_OBJECT, PREFER_CACHE, { test: FIRST_CALL }, 'bar', 'foo')
+        createFetchAction(
+          LOAD_MY_OBJECT, PREFER_CACHE,
+          { api: 'throwFirst', test: FIRST_CALL },
+          'bar', 'foo'
+        )
       );
 
       setTimeout(() =>
         store.dispatch(
-          createFetchAction(LOAD_MY_OBJECT, PREFER_CACHE, { test: NEXT_CALL }, 'bar', 'foo')
+          createFetchAction(
+            LOAD_MY_OBJECT, PREFER_CACHE,
+            { api: 'throwFirst', test: NEXT_CALL },
+            'bar', 'foo'
+          )
         ),
         TEST_TIMEOUT * 2
       );

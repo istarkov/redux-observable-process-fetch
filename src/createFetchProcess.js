@@ -50,84 +50,83 @@ import {
 * If sequentially action LOADING_CANCEL will be run
 * Look at tests for examples.
 */
-export default ({ fetch }) =>
-  (actions$, { dispatch }) => {
-    const prepared$ = actions$
-      // filter only needed events
-      .filter(({ type }) => type === FETCH_DATA || type === FETCH_CLEAR_CACHE)
-      // precalculate dataKey as it will be used in multiple places
-      .map((action) => ({
-        ...action,
-        dataKey: JSON.stringify([action.meta.type, ...action.payload]),
-      }))
-      // to simplify logic split action on two if we need to refetch item
-      // as refetch is the same as fetch after cache clean
-      .mergeMap(action => action.meta.cache
-        ? Observable.of(action)
-        : Observable.from([
-          { ...action, type: FETCH_CLEAR_CACHE },
-          action,
-        ])
-      );
+export default (services) =>
+(actions$, { dispatch }) => {
+  const prepared$ = actions$
+    // filter only needed events
+    .filter(({ type }) => type === FETCH_DATA || type === FETCH_CLEAR_CACHE)
+    // precalculate dataKey as it will be used in multiple places
+    .map((action) => ({
+      ...action,
+      dataKey: JSON.stringify([action.meta.type, ...action.payload]),
+    }))
+    // to simplify logic split action on two if we need to refetch item
+    // as refetch is the same as fetch after cache clean
+    .mergeMap(action => action.meta.cache
+      ? Observable.of(action)
+      : Observable.from([
+        { ...action, type: FETCH_CLEAR_CACHE },
+        action,
+      ])
+    );
 
-    return prepared$
-      // hold information wich items is fetched already
-      .scan(
-        (r, action) => {
-          r.action = undefined;
-          if (action.type === FETCH_CLEAR_CACHE) {
-            delete r[action.dataKey];
-          } else if (!(action.dataKey in r)) {
-            r[action.dataKey] = 1;
-            r.action = action; // recall this action
-          }
-          return r;
-        },
-        {}
-      )
-      .filter(({ action }) => action !== undefined)
-      // if action is not undefined we should to refetch item
-      .mergeMap(({ action }) =>
-        Observable.of({})
-          .delay(0) // to allow not run first fetch if same actions run simultaneously
-          .takeUntil(
-            prepared$
-              .filter(({ type, dataKey: key }) =>
-                type === FETCH_CLEAR_CACHE && key === action.dataKey
-              )
-          )
-          .mergeMap(() =>
-            Observable.of({ type: LOADING_START, payload: action.payload, meta: action.meta })
-              .concat(
-                fetch(...action.payload)
-                .map(payload => ({ type: action.meta.type, payload, meta: action.meta }))
-                .catch(error => Observable.of({
-                  type: action.meta.type, payload: error, error: true, meta: action.meta,
-                }))
-                .do(({ error }) => {
-                  if (error === true) {
-                    // run dispatch at next step to allow error and LOADING_END actions to
-                    // finish process
-                    Observable.of({ ...action, type: FETCH_CLEAR_CACHE })
-                      .delay(0)
-                      .subscribe(dispatch);
-                  }
-                })
-              )
-              // .startWith({ ...action, type: LOADING_START })
-              .concat(
-                Observable.of({ type: LOADING_END, payload: action.payload, meta: action.meta })
-              )
-              // we should stop sequence if FETCH_CLEAR_CACHE occured (the second action wins)
-              .takeUntil(
-                prepared$
-                  .filter(({ type, dataKey: key }) =>
-                    type === FETCH_CLEAR_CACHE && key === action.dataKey
-                  )
-                  .do(() => dispatch({
-                    type: LOADING_CANCEL, payload: action.payload, meta: action.meta,
-                  }))
-              )
+  return prepared$
+    // hold information wich items is fetched already
+    .scan(
+      (r, action) => {
+        r.action = undefined;
+        if (action.type === FETCH_CLEAR_CACHE) {
+          delete r[action.dataKey];
+        } else if (!(action.dataKey in r)) {
+          r[action.dataKey] = 1;
+          r.action = action; // recall this action
+        }
+        return r;
+      },
+      {}
+    )
+    .filter(({ action }) => action !== undefined)
+    // if action is not undefined we should to refetch item
+    .mergeMap(({ action }) =>
+      Observable.of({})
+        .delay(0) // to allow not run first fetch if same actions run simultaneously
+        .takeUntil(
+          prepared$
+            .filter(({ type, dataKey: key }) =>
+              type === FETCH_CLEAR_CACHE && key === action.dataKey
+            )
         )
-      );
-  };
+        .mergeMap(() =>
+          Observable.of({ type: LOADING_START, payload: action.payload, meta: action.meta })
+            .concat(
+              (services[action.meta.api] || services)(...action.payload)
+              .map(payload => ({ type: action.meta.type, payload, meta: action.meta }))
+              .catch(error => Observable.of({
+                type: action.meta.type, payload: error, error: true, meta: action.meta,
+              }))
+              .do(({ error }) => {
+                if (error === true) {
+                  // run dispatch at next step to allow error and LOADING_END actions to
+                  // finish process
+                  Observable.of({ ...action, type: FETCH_CLEAR_CACHE })
+                    .delay(0)
+                    .subscribe(dispatch);
+                }
+              })
+            )
+            .concat(
+              Observable.of({ type: LOADING_END, payload: action.payload, meta: action.meta })
+            )
+            // we should stop sequence if FETCH_CLEAR_CACHE occured (the second action wins)
+            .takeUntil(
+              prepared$
+                .filter(({ type, dataKey: key }) =>
+                  type === FETCH_CLEAR_CACHE && key === action.dataKey
+                )
+                .do(() => dispatch({
+                  type: LOADING_CANCEL, payload: action.payload, meta: action.meta,
+                }))
+            )
+      )
+    );
+};
