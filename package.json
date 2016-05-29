@@ -1,6 +1,6 @@
 {
   "name": "redux-observable-process-fetch",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "processes for redux-observable",
   "main": "lib/index.js",
   "scripts": {
