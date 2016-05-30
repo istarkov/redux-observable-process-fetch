@@ -7,7 +7,8 @@
     "lint": "eslint src tests",
     "test": "mocha --compilers js:babel-register './tests/*.spec.js'",
     "test:watch": "mocha --compilers js:babel-register --reporter min --watch './tests/*.spec.js'",
-    "build": "npm run lint && rimraf lib && babel src -d lib"
+    "build": "npm run lint && rimraf lib && babel src -d lib",
+    "prepublish": "npm run lint && npm run test && npm run build"
   },
   "repository": {
     "type": "git",
